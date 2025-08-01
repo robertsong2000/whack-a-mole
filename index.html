@@ -46,6 +46,7 @@
             padding: 15px;
             background: #f8f9fa;
             border-radius: 10px;
+            position: relative;
         }
 
         .score, .timer {
@@ -56,10 +57,19 @@
 
         .score {
             color: #28a745;
+            transition: transform 0.2s ease;
+        }
+
+        .score.animate {
+            animation: scorePopup 0.3s ease;
         }
 
         .timer {
             color: #dc3545;
+        }
+
+        .timer.warning {
+            animation: timerWarning 1s ease infinite;
         }
 
         .game-board {
@@ -81,13 +91,17 @@
             border-radius: 50%;
             position: relative;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             border: 3px solid #4a3018;
             overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .hole:hover {
             transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
 
         .mole {
@@ -98,12 +112,14 @@
             position: absolute;
             top: 100%;
             left: 0;
-            transition: all 0.3s ease;
+            transition: all 0.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 2em;
             transform-origin: bottom center;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         .mole.show {
@@ -119,11 +135,11 @@
         @keyframes molePopup {
             0% {
                 top: 100%;
-                transform: scale(0.8);
+                transform: scale(0.6) rotate(-10deg);
             }
             100% {
                 top: 0;
-                transform: scale(1);
+                transform: scale(1) rotate(0deg);
             }
         }
 
@@ -188,6 +204,17 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        @keyframes scorePopup {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes timerWarning {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); color: #ff6b6b; }
+        }
+
         @media (max-width: 480px) {
             .game-container {
                 padding: 20px;
@@ -244,6 +271,9 @@
                 this.currentMole = null;
                 this.gameTimer = null;
                 this.moleTimer = null;
+                this.holes = [];
+                this.moleSpeed = 1000;
+                this.scoreMultiplier = 1;
                 
                 this.initializeElements();
                 this.createGameBoard();
@@ -261,6 +291,9 @@
             
             createGameBoard() {
                 this.gameBoard.innerHTML = '';
+                this.holes = [];
+                const fragment = document.createDocumentFragment();
+                
                 for (let i = 0; i < 16; i++) {
                     const hole = document.createElement('div');
                     hole.className = 'hole';
@@ -271,8 +304,11 @@
                     mole.innerHTML = '🐹';
                     
                     hole.appendChild(mole);
-                    this.gameBoard.appendChild(hole);
+                    fragment.appendChild(hole);
+                    this.holes.push(hole);
                 }
+                
+                this.gameBoard.appendChild(fragment);
             }
             
             bindEvents() {
@@ -317,6 +353,7 @@
                 clearInterval(this.gameTimer);
                 clearTimeout(this.moleTimer);
                 this.hideCurrentMole();
+                this.scoreMultiplier = 1;
             }
             
             spawnMole() {
@@ -324,14 +361,14 @@
                 
                 this.hideCurrentMole();
                 
-                const holes = document.querySelectorAll('.hole');
-                const randomHole = holes[Math.floor(Math.random() * holes.length)];
+                const randomHole = this.holes[Math.floor(Math.random() * this.holes.length)];
                 const mole = randomHole.querySelector('.mole');
                 
                 this.currentMole = mole;
                 mole.classList.add('show');
                 
-                const delay = Math.random() * 1000 + 1000; // 1-2秒
+                const speedIncrease = Math.max(0.3, 1 - (this.score * 0.001));
+                const delay = (Math.random() * 800 + 600) * speedIncrease;
                 
                 this.moleTimer = setTimeout(() => {
                     this.spawnMole();
@@ -354,13 +391,24 @@
                 const mole = hole.querySelector('.mole');
                 if (!mole.classList.contains('show') || mole.classList.contains('hit')) return;
                 
+                e.preventDefault();
                 this.hitMole(mole);
             }
             
             hitMole(mole) {
                 mole.classList.add('hit');
-                this.score += 10;
+                const points = Math.floor(10 * this.scoreMultiplier);
+                this.score += points;
                 this.updateDisplay();
+                
+                this.scoreElement.classList.add('animate');
+                setTimeout(() => {
+                    this.scoreElement.classList.remove('animate');
+                }, 300);
+                
+                if (this.score > 0 && this.score % 50 === 0) {
+                    this.scoreMultiplier += 0.1;
+                }
                 
                 setTimeout(() => {
                     mole.classList.remove('show', 'hit');
@@ -370,6 +418,12 @@
             updateDisplay() {
                 this.scoreElement.textContent = this.score;
                 this.timerElement.textContent = this.timeLeft;
+                
+                if (this.timeLeft <= 10) {
+                    this.timerElement.classList.add('warning');
+                } else {
+                    this.timerElement.classList.remove('warning');
+                }
             }
         }
         
